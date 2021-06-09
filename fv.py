@@ -81,40 +81,35 @@ class RGBgradients(nn.Module):
 
 
 
-# function to massage img_tensor for using as input to plt.imshow()
-def image_converter(im):
-    # undo the above normalization if and when the need arises 
-    denormalize = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225], std = [1/0.229, 1/0.224, 1/0.225] )
-    # move the image to cpu
-    im_copy = im.cpu()    
-    # for plt.imshow() the channel-dimension is the last
-    # therefore use transpose to permute axes
-    im_copy = denormalize(im_copy.clone().detach()).numpy()
-    im_copy = im_copy.transpose(1,2,0)
-    
-    # clip negative values as plt.imshow() only accepts 
-    # floating values in range [0,1] and integers in range [0,255]
-    im_copy = im_copy.clip(0, 1) 
-    
-    return im_copy
-
-
-
-
-# function to compute gradient loss of an image 
-def grad_loss(img, gradLayer,beta = 1, device = 'cpu'):
-    
-    # move the gradLayer to cuda
-    gradLayer.to(device)
-    gradSq = gradLayer(img.unsqueeze(0))**2
-    
-    grad_loss = torch.pow(gradSq.mean(), beta/2)
-    
-    return grad_loss
-
 class FeatureVisualization():
     def __init__(self,model) -> None:
         self.model = model
+    # function to compute gradient loss of an image 
+    def grad_loss(self,img, gradLayer,beta = 1, device = 'cpu'):
+        
+        # move the gradLayer to cuda
+        gradLayer.to(device)
+        gradSq = gradLayer(img.unsqueeze(0))**2
+        
+        grad_loss = torch.pow(gradSq.mean(), beta/2)
+        
+        return grad_loss
+    # function to massage img_tensor for using as input to plt.imshow()
+    def image_converter(self,im):
+        # undo the above normalization if and when the need arises 
+        denormalize = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225], std = [1/0.229, 1/0.224, 1/0.225] )
+        # move the image to cpu
+        im_copy = im.cpu()    
+        # for plt.imshow() the channel-dimension is the last
+        # therefore use transpose to permute axes
+        im_copy = denormalize(im_copy.clone().detach()).numpy()
+        im_copy = im_copy.transpose(1,2,0)
+        
+        # clip negative values as plt.imshow() only accepts 
+        # floating values in range [0,1] and integers in range [0,255]
+        im_copy = im_copy.clip(0, 1) 
+        
+        return im_copy
     def visualizeFeature(self,filter_id, layer_name,init_dim = 56,upscaling_steps=12,optim_steps=20,act_wt = 0.5,upscaling_factor =  1.2):
         for param in self.model.parameters():
             param.requires_grad_(False)
@@ -192,7 +187,7 @@ class FeatureVisualization():
                     sys.exit()
                     
                 # image gradients
-                im_grd = grad_loss(clone_img_tensor,gradLayer, beta = 1, device = device)
+                im_grd = self.grad_loss(clone_img_tensor,gradLayer, beta = 1, device = device)
                 # terminate is im_grd is nan
                 if torch.isnan(im_grd):
                     print('Error: image gradients were Nan; Terminating ...')
@@ -207,7 +202,7 @@ class FeatureVisualization():
                 
             # view the result of optimising the image
             print('end mag_epoch: {}, activation: {}'.format(mag_epoch, rms))
-            img = image_converter(clone_img_tensor)    
+            img = self.image_converter(clone_img_tensor)    
             plt.imshow(img)
             plt.title('image at the end of mag_epoch: {}'.format(mag_epoch+1))
             # plt.show()
